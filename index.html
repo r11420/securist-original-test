@@ -3970,7 +3970,7 @@ function explanationBlock(q, sel){
   var disp={}; for(var i=0;i<idLetters.length;i++){disp[idLetters[i]]=LETTERS[i];}
 
   var h='<div class="exp">'+
-    '<div class="verline '+vcls+'">'+(correct?'✓ ':'✗ ')+vtxt+' ／ 正答は '+disp[q.answer]+'（'+q.answer+'）</div>'+
+    '<div class="verline '+vcls+'">'+(correct?'✓ ':'✗ ')+vtxt+' ／ 正答は '+disp[q.answer]+'</div>'+
     '<h4>解説</h4><p>'+rich(q.exp)+'</p>'+
     '<h4>誤答の理由</h4>';
   for(var L in q.why){
