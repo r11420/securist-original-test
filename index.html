@@ -3802,6 +3802,27 @@ function labelOf(q,optionId){
   for(var i=0;i<il.length;i++){ if(il[i]===optionId) return LETTERS[i]; }
   return '';
 }
+/* 解説文中の固定選択肢ラベル（A/B/C/D）をシャッフル後の表示ラベルへ単一パスで置換。
+   origToDisp: 元キー→現在表示ラベルのマップ。例: {A:'C', B:'A', C:'D', D:'B'}
+   対象パターン：選択肢X / 誤りはX・正解はX / A・B・C型 / Xは誤り・Xが正しい等 */
+function dynamicizeExp(text, origToDisp){
+  if(!text) return text;
+  return text.replace(
+    /選択肢([ABCD])|(誤りは|正解は)([ABCD])|([ABCD])((?:・[ABCD])+)|([ABCD])([はが](?:誤り|正しい|正解|不正確|不適切))/g,
+    function(){
+      var l1=arguments[1], pre=arguments[2], l2=arguments[3],
+          first=arguments[4], rest=arguments[5], l3=arguments[6], suf=arguments[7];
+      if(l1!==undefined) return '選択肢'+(origToDisp[l1]||l1);
+      if(pre!==undefined) return pre+(origToDisp[l2]||l2);
+      if(first!==undefined){
+        var letters=[first].concat(rest.slice(1).split('・'));
+        return letters.map(function(l){ return origToDisp[l]||l; }).join('・');
+      }
+      if(l3!==undefined) return (origToDisp[l3]||l3)+suf;
+      return arguments[0];
+    }
+  );
+}
 
 /* ============================== THEME ============================== */
 document.getElementById('themeBtn').onclick=function(){
@@ -3992,11 +4013,17 @@ function explanationBlock(q, sel){
   var vtxt = correct?'正解':(sel?'不正解':'未回答');
   var opts=buildOptions(q);            // 表示順の選択肢オブジェクト
   var ansLabel='';
-  for(var i=0;i<opts.length;i++){ if(opts[i].isCorrect){ansLabel=opts[i].label;break;} }
+  var origToDisp={};
+  for(var i=0;i<opts.length;i++){
+    origToDisp[opts[i].optionId]=opts[i].label;
+    if(opts[i].isCorrect){ansLabel=opts[i].label;}
+  }
+  // 解説文中の固定ラベルをシャッフル後の表示ラベルに動的置換
+  var expText=dynamicizeExp(q.exp, origToDisp);
 
   var h='<div class="exp">'+
     '<div class="verline '+vcls+'">'+(correct?'✓ ':'✗ ')+vtxt+' ／ 正答は '+ansLabel+'</div>'+
-    '<h4>解説</h4><p>'+rich(q.exp)+'</p>'+
+    '<h4>解説</h4><p>'+rich(expText)+'</p>'+
     '<h4>誤答の理由</h4>';
   // 誤答理由は「表示中のA〜D」の並び順で出力し、各行に表示ラベルを付与する
   for(var j=0;j<opts.length;j++){
