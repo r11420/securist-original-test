@@ -3777,6 +3777,31 @@ function optLetters(q){
   }
   return S.optMap[q.id];
 }
+/* 選択肢を「表示順」のオブジェクト配列として組み立てる。
+   shuffle後もこの単位（optionId）で本文・正誤・誤答理由を一括保持し、
+   表示ラベルA〜Dは並び順に応じて付与する。 */
+function buildOptions(q){
+  var il=optLetters(q);            // 元キー（optionId）の表示順
+  var arr=[];
+  for(var i=0;i<il.length;i++){
+    var id=il[i];
+    arr.push({
+      optionId:id,                 // 元の選択肢キー（安定ID）
+      label:LETTERS[i],            // 画面表示ラベル A〜D（並び順依存）
+      text:q.opts[id],             // 選択肢本文
+      isCorrect:id===q.answer,     // 正誤情報
+      wrongReason:(q.why&&q.why.hasOwnProperty(id))?q.why[id]:'' // 誤答理由
+    });
+  }
+  return arr;
+}
+/* optionId（元キー）→ 現在の表示ラベル A〜D */
+function labelOf(q,optionId){
+  if(optionId==null) return '';
+  var il=optLetters(q);
+  for(var i=0;i<il.length;i++){ if(il[i]===optionId) return LETTERS[i]; }
+  return '';
+}
 
 /* ============================== THEME ============================== */
 document.getElementById('themeBtn').onclick=function(){
@@ -3875,7 +3900,7 @@ function renderQuiz(){
   var qs=activeQuestions();
   var q=curQ();
   var total=S.order.length;
-  var idLetters=optLetters(q);
+  var opts=buildOptions(q);
   var sel=S.answers[q.id];
   var revealed=S.mode==='study' && S.revealed[q.id];
 
@@ -3899,19 +3924,18 @@ function renderQuiz(){
     '<div class="qbody"><p class="qtext">'+rich(q.q)+'</p></div>'+
     '<div class="answers" id="answers">';
 
-  for(var i=0;i<idLetters.length;i++){
-    var L=idLetters[i];                 // original letter (key into opts)
-    var disp=LETTERS[i];                // displayed label A-D in current order
+  for(var i=0;i<opts.length;i++){
+    var o=opts[i];                      // 表示順の選択肢オブジェクト
     var cls='ans';
     var verdict='';
     if(revealed){
       cls+=' locked';
-      if(L===q.answer){cls+=' correct';verdict='<span class="verdict">正解</span>';}
-      else if(L===sel){cls+=' wrong';verdict='<span class="verdict">あなたの解答</span>';}
-    }else if(L===sel){cls+=' sel';}
-    html+='<button class="'+cls+'" data-letter="'+L+'">'+
-            '<span class="lt">'+disp+'</span>'+
-            '<span class="atext">'+rich(q.opts[L])+'</span>'+verdict+
+      if(o.isCorrect){cls+=' correct';verdict='<span class="verdict">正解</span>';}
+      else if(o.optionId===sel){cls+=' wrong';verdict='<span class="verdict">あなたの解答</span>';}
+    }else if(o.optionId===sel){cls+=' sel';}
+    html+='<button class="'+cls+'" data-letter="'+o.optionId+'">'+
+            '<span class="lt">'+o.label+'</span>'+
+            '<span class="atext">'+rich(o.text)+'</span>'+verdict+
           '</button>';
   }
   html+='</div>';
@@ -3966,17 +3990,19 @@ function explanationBlock(q, sel){
   var correct = sel===q.answer;
   var vcls = correct?'ok':'bad';
   var vtxt = correct?'正解':(sel?'不正解':'未回答');
-  var idLetters=optLetters(q);
-  var disp={}; for(var i=0;i<idLetters.length;i++){disp[idLetters[i]]=LETTERS[i];}
+  var opts=buildOptions(q);            // 表示順の選択肢オブジェクト
+  var ansLabel='';
+  for(var i=0;i<opts.length;i++){ if(opts[i].isCorrect){ansLabel=opts[i].label;break;} }
 
   var h='<div class="exp">'+
-    '<div class="verline '+vcls+'">'+(correct?'✓ ':'✗ ')+vtxt+' ／ 正答は '+disp[q.answer]+'</div>'+
+    '<div class="verline '+vcls+'">'+(correct?'✓ ':'✗ ')+vtxt+' ／ 正答は '+ansLabel+'</div>'+
     '<h4>解説</h4><p>'+rich(q.exp)+'</p>'+
     '<h4>誤答の理由</h4>';
-  for(var L in q.why){
-    if(q.why.hasOwnProperty(L)){
-      h+='<div class="why" data-l="'+disp[L]+'.">'+rich(q.why[L])+'</div>';
-    }
+  // 誤答理由は「表示中のA〜D」の並び順で出力し、各行に表示ラベルを付与する
+  for(var j=0;j<opts.length;j++){
+    var o=opts[j];
+    if(o.isCorrect || !o.wrongReason) continue;
+    h+='<div class="why" data-l="'+o.label+'.">'+rich(o.wrongReason)+'</div>';
   }
   h+='<h4>関連用語</h4><div class="terms">';
   q.terms.split(',').forEach(function(t){t=t.trim();if(t)h+='<span class="term">'+esc(t)+'</span>';});
@@ -4084,9 +4110,8 @@ function renderResult(){
   var idxLabel={};
   for(var i=0;i<R.rows.length;i++){
     var r=R.rows[i]; var q=r.q;
-    var il=optLetters(q); var disp={}; for(var j=0;j<il.length;j++){disp[il[j]]=LETTERS[j];}
-    var selLabel=r.sel?disp[r.sel]:'—';
-    var ansLabel=disp[q.answer];
+    var selLabel=r.sel?labelOf(q,r.sel):'—';
+    var ansLabel=labelOf(q,q.answer);
     html+=
     '<details class="ritem">'+
       '<summary>'+
@@ -4098,7 +4123,7 @@ function renderResult(){
         '<span class="rchev">▸</span>'+
       '</summary>'+
       '<div class="qbody" style="padding:14px 15px 0"><p class="qtext" style="font-size:14.5px">'+rich(q.q)+'</p></div>'+
-      resultOptions(q, r.sel, disp)+
+      resultOptions(q, r.sel)+
       explanationBlock(q, r.sel)+
     '</details>';
   }
@@ -4122,14 +4147,14 @@ function renderResult(){
     if(fg)fg.style.strokeDashoffset=(circ*(1-pct/100)).toFixed(1);},80);
 }
 
-function resultOptions(q, sel, disp){
-  var il=optLetters(q);
+function resultOptions(q, sel){
+  var opts=buildOptions(q);            // 表示順の選択肢オブジェクト
   var h='<div class="answers" style="padding-top:14px">';
-  for(var i=0;i<il.length;i++){
-    var L=il[i]; var cls='ans locked'; var v='';
-    if(L===q.answer){cls+=' correct';v='<span class="verdict">正解</span>';}
-    else if(L===sel){cls+=' wrong';v='<span class="verdict">あなたの解答</span>';}
-    h+='<div class="'+cls+'"><span class="lt">'+disp[L]+'</span><span class="atext">'+rich(q.opts[L])+'</span>'+v+'</div>';
+  for(var i=0;i<opts.length;i++){
+    var o=opts[i]; var cls='ans locked'; var v='';
+    if(o.isCorrect){cls+=' correct';v='<span class="verdict">正解</span>';}
+    else if(o.optionId===sel){cls+=' wrong';v='<span class="verdict">あなたの解答</span>';}
+    h+='<div class="'+cls+'"><span class="lt">'+o.label+'</span><span class="atext">'+rich(o.text)+'</span>'+v+'</div>';
   }
   h+='</div>';
   return h;
