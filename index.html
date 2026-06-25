@@ -1259,7 +1259,7 @@ var QUESTIONS = [
     "type": "最も適切なものを選べ",
     "negative": false,
     "weakness": "terminology",
-    "q": "CSRFとXSSの違いに関する記述として、最も適切なものはどれか。",
+    "q": "CSRFとXSSの「攻撃の仕組み」の違いに関する記述として、最も適切なものはどれか。",
     "opts": {
       "A": "CSRFはリクエストごとのトークン照合で対策し、XSSはサーバ側の出力エスケープで対策するという関係にある。",
       "B": "CSRFはクロスサイトからスクリプトを実行させる攻撃で、XSSは意図しないリクエストを正規処理として実行させる攻撃である。",
@@ -1267,9 +1267,9 @@ var QUESTIONS = [
       "D": "CSRFはCookieの`HttpOnly`属性で、XSSはCookieの`SameSite`属性で対処するという関係にある。"
     },
     "answer": "C",
-    "exp": "CSRFは「意図しないリクエストを正規の認証情報で実行させる」攻撃、XSSは「被害者のブラウザ上でスクリプトを実行させる」攻撃で、成立要件も対策も異なる。Cは両者の定義を正しく対応づけており正しい。",
+    "exp": "CSRFは「意図しないリクエストを正規の認証情報で実行させる」攻撃、XSSは「被害者のブラウザ上でスクリプトを実行させる」攻撃で、成立要件も対策も異なる。両者の攻撃の仕組みを正しく対応づけた選択肢が正解となる。",
     "why": {
-      "A": "トークン照合はCSRF、出力エスケープはXSSの対策という点は正しいが、これは対策の話であり、設問が問う「攻撃そのものの違い」には答えていない。",
+      "A": "対策としては正しい内容ですが、この設問は攻撃の仕組みの違いを問うているため、最適解ではありません。トークン照合（CSRF対策）・出力エスケープ（XSS対策）は対策の違いであり、攻撃がどう成立するかの違いには答えていません。",
       "B": "クロスサイトからのスクリプト実行はXSS側の性質、意図しないリクエストの正規処理実行はCSRF側の性質であり、両者の定義を入れ替えている。",
       "D": "Cookie属性の役割を混同。`HttpOnly`はJSからのCookie読取防止(XSS被害軽減)、`SameSite`はクロスサイト送信抑止(CSRF対策)で対応が逆である。"
     },
@@ -3804,22 +3804,35 @@ function labelOf(q,optionId){
 }
 /* 解説文中の固定選択肢ラベル（A/B/C/D）をシャッフル後の表示ラベルへ単一パスで置換。
    origToDisp: 元キー→現在表示ラベルのマップ。例: {A:'C', B:'A', C:'D', D:'B'}
-   対象パターン：選択肢X / 誤りはX・正解はX / A・B・C型 / Xは誤り・Xが正しい等 */
+   対象パターン：選択肢X / 誤りは・正解は・のはX / A・B・C or A/B/C型 / BCDは連続 / AやD / Xは誤り等 / 汎用Xは/Xが */
 function dynamicizeExp(text, origToDisp){
   if(!text) return text;
   return text.replace(
-    /選択肢([ABCD])|(誤りは|正解は)([ABCD])|([ABCD])((?:・[ABCD])+)|([ABCD])([はが](?:誤り|正しい|正解|不正確|不適切))/g,
+    /選択肢([ABCD])|((?:誤りは|正解は|のは))([ABCD])|([ABCD])((?:[・\/][ABCD])+)|([ABCD]{2,4})([はが])|([ABCD])や([ABCD])|([ABCD])([はが](?:誤り|正しい|正解|不正確|不適切))|([ABCD])([はが])/g,
     function(){
-      var l1=arguments[1], pre=arguments[2], l2=arguments[3],
-          first=arguments[4], rest=arguments[5], l3=arguments[6], suf=arguments[7];
-      if(l1!==undefined) return '選択肢'+(origToDisp[l1]||l1);
-      if(pre!==undefined) return pre+(origToDisp[l2]||l2);
-      if(first!==undefined){
-        var letters=[first].concat(rest.slice(1).split('・'));
-        return letters.map(function(l){ return origToDisp[l]||l; }).join('・');
+      var a=arguments;
+      // P1: 選択肢X
+      if(a[1]!==undefined) return '選択肢'+(origToDisp[a[1]]||a[1]);
+      // P2: 誤りはX / 正解はX / のはX
+      if(a[2]!==undefined) return a[2]+(origToDisp[a[3]]||a[3]);
+      // P3: A・B・C or A/B/C (区切り文字付き連続)
+      if(a[4]!==undefined){
+        var sep=a[5][0];
+        var letters=[a[4]].concat(a[5].slice(1).split(sep));
+        return letters.map(function(l){return origToDisp[l]||l;}).join(sep);
       }
-      if(l3!==undefined) return (origToDisp[l3]||l3)+suf;
-      return arguments[0];
+      // P4: BCDは / ABは など連続文字
+      if(a[6]!==undefined){
+        var r=''; for(var i=0;i<a[6].length;i++) r+=origToDisp[a[6][i]]||a[6][i];
+        return r+a[7];
+      }
+      // P5: AやB
+      if(a[8]!==undefined) return (origToDisp[a[8]]||a[8])+'や'+(origToDisp[a[9]]||a[9]);
+      // P6: Xは誤り / Xが正しい / Xが正解 / Xが不正確 / Xが不適切
+      if(a[10]!==undefined) return (origToDisp[a[10]]||a[10])+a[11];
+      // P7: 汎用 Xは / Xが
+      if(a[12]!==undefined) return (origToDisp[a[12]]||a[12])+a[13];
+      return a[0];
     }
   );
 }
